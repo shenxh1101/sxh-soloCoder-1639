@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
-import { ShoppingCart, AlertTriangle, TrendingDown, CheckCircle, Clock, ChevronDown, ChevronUp, Package, Sparkles } from "lucide-react";
+import { ShoppingCart, AlertTriangle, TrendingDown, CheckCircle, Clock, ChevronDown, ChevronUp, Package, Sparkles, TrendingUp, Flower2 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { useFlowerStore } from "@/store/useFlowerStore";
 import type { PurchaseSuggestionLevel } from "@/types";
 import Button from "@/components/Button";
 
 const levelConfig: Record<PurchaseSuggestionLevel, { label: string; color: string; bg: string; border: string; icon: typeof AlertTriangle }> = {
   urgent: { label: "急需补货", color: "text-red-600", bg: "bg-red-50", border: "border-red-200", icon: AlertTriangle },
+  "trending-up": { label: "销量上升", color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-200", icon: TrendingUp },
   suggest: { label: "建议补货", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", icon: ShoppingCart },
   hold: { label: "按需补货", color: "text-leaf-600", bg: "bg-leaf-50", border: "border-leaf-200", icon: CheckCircle },
   reduce: { label: "减少进货", color: "text-rose-500", bg: "bg-rose-50", border: "border-rose-200", icon: TrendingDown },
@@ -75,8 +77,8 @@ export default function PurchaseSuggestion() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {(["urgent", "suggest", "hold", "reduce"] as PurchaseSuggestionLevel[]).map(level => {
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+        {(["urgent", "trending-up", "suggest", "hold", "reduce"] as PurchaseSuggestionLevel[]).map(level => {
           const count = suggestions.filter(s => s.level === level).length;
           const config = levelConfig[level];
           const Icon = config.icon;
@@ -163,7 +165,7 @@ export default function PurchaseSuggestion() {
 
                 {isExpanded && (
                   <div className="bg-rose-50/30 px-5 py-4 pl-16">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-4">
                       <div className="bg-white rounded-xl p-3">
                         <p className="text-xs text-ink/50 mb-1">本周售出</p>
                         <p className="font-serif text-lg font-bold text-leaf-600">{item.weeklyUsage} 枝</p>
@@ -181,10 +183,126 @@ export default function PurchaseSuggestion() {
                         </p>
                       </div>
                       <div className="bg-white rounded-xl p-3">
-                        <p className="text-xs text-ink/50 mb-1">安全库存</p>
-                        <p className="font-serif text-lg font-bold text-ink">{flower?.lowStockThreshold || 0} 枝</p>
+                        <p className="text-xs text-ink/50 mb-1">保鲜天数</p>
+                        <p className="font-serif text-lg font-bold text-purple-500 flex items-center gap-1">
+                          <Flower2 className="w-4 h-4" />
+                          {item.freshDays} 天
+                        </p>
+                      </div>
+                      <div className="bg-white rounded-xl p-3">
+                        <p className="text-xs text-ink/50 mb-1">库存可售</p>
+                        <p className={`font-serif text-lg font-bold ${
+                          item.weeklyUsage + item.weeklyLoss > 0 && (item.currentStock / (item.weeklyUsage + item.weeklyLoss) * 7) > item.freshDays
+                            ? "text-amber-500"
+                            : "text-ink"
+                        }`}>
+                          {item.weeklyUsage + item.weeklyLoss > 0
+                            ? Math.round(item.currentStock / (item.weeklyUsage + item.weeklyLoss) * 7)
+                            : 999} 天
+                        </p>
                       </div>
                     </div>
+
+                    {item.trends.length > 0 && (
+                      <div className="bg-white rounded-xl p-4 mb-4">
+                        <p className="text-sm font-medium text-ink/70 mb-3 flex items-center gap-1.5">
+                          <TrendingUp className="w-4 h-4 text-rose-400" />
+                          最近4周销量趋势
+                          {item.trendHint === "up" && (
+                            <span className="ml-2 text-xs px-2 py-0.5 bg-purple-100 text-purple-600 rounded-full font-medium">
+                              销量上升 ↑
+                            </span>
+                          )}
+                          {item.trendHint === "down" && (
+                            <span className="ml-2 text-xs px-2 py-0.5 bg-amber-100 text-amber-600 rounded-full font-medium">
+                              销量下降 ↓
+                            </span>
+                          )}
+                          {item.trendHint === "stable" && (
+                            <span className="ml-2 text-xs px-2 py-0.5 bg-leaf-100 text-leaf-600 rounded-full font-medium">
+                              销量稳定 →
+                            </span>
+                          )}
+                        </p>
+                        <div className="h-40">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={item.trends} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#FCE4EC" />
+                              <XAxis
+                                dataKey="weekLabel"
+                                tick={{ fontSize: 10, fill: "#4A4A4A" }}
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <YAxis
+                                tick={{ fontSize: 10, fill: "#4A4A4A" }}
+                                axisLine={false}
+                                tickLine={false}
+                                width={35}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  borderRadius: "12px",
+                                  border: "none",
+                                  boxShadow: "0 4px 20px rgba(201,123,132,0.15)",
+                                  fontSize: "12px",
+                                }}
+                                formatter={(value: number, name: string) => [
+                                  `${value} 枝`,
+                                  name === "sales" ? "售出" : "损耗",
+                                ]}
+                              />
+                              <Bar
+                                dataKey="sales"
+                                name="sales"
+                                fill="#E8B4B8"
+                                radius={[4, 4, 0, 0]}
+                              />
+                              <Bar
+                                dataKey="loss"
+                                name="loss"
+                                fill="#F8B4B4"
+                                radius={[4, 4, 0, 0]}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="flex items-center justify-center gap-6 mt-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-3 h-3 rounded-full bg-[#E8B4B8]" />
+                            <span className="text-xs text-ink/60">售出</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-3 h-3 rounded-full bg-[#F8B4B4]" />
+                            <span className="text-xs text-ink/60">损耗</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {item.weeklyLoss > 0 && (item.weeklyLoss / (item.weeklyUsage + item.weeklyLoss)) > 0.2 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-medium text-amber-700">损耗偏高提示</p>
+                          <p className="text-[11px] text-amber-600 mt-0.5">
+                            建议尝试：深水醒花2小时、每日剪根换水、存放于5-8℃冷藏环境、避免阳光直射
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {item.trendHint === "up" && (
+                      <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+                        <TrendingUp className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-medium text-purple-700">销量上升提示</p>
+                          <p className="text-[11px] text-purple-600 mt-0.5">
+                            最近两周销量增长明显，建议适当增加备货量，避免缺货影响销售
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="bg-white rounded-xl p-4">
                       <p className="text-sm font-medium text-ink/70 mb-3 flex items-center gap-1.5">
@@ -245,10 +363,13 @@ export default function PurchaseSuggestion() {
         </h3>
         <ul className="text-sm text-ink/70 space-y-1.5">
           <li>• <span className="text-red-600 font-medium">急需补货</span>：库存低于安全线或已售罄，建议尽快采购</li>
+          <li>• <span className="text-purple-600 font-medium">销量上升</span>：最近销量增长超过30%，建议适当多备货</li>
           <li>• <span className="text-amber-600 font-medium">建议补货</span>：库存不足一周用量，建议近期补货</li>
           <li>• <span className="text-leaf-600 font-medium">按需补货</span>：库存合理，可根据订单情况少量补货</li>
-          <li>• <span className="text-rose-500 font-medium">减少进货</span>：库存充足或损耗率高，建议少进一点</li>
-          <li>• 建议进货量按「两周用量 - 当前库存」估算，实际采购请结合保鲜期和节日情况调整</li>
+          <li>• <span className="text-rose-500 font-medium">减少进货</span>：库存充足、损耗率高或超过保鲜期，建议少进一点</li>
+          <li>• 建议进货量结合「两周用量 × 趋势系数 - 当前库存」估算，实际采购请结合保鲜期和节日情况调整</li>
+          <li>• 库存可售天数超过保鲜期1.5倍时会提醒少进货，避免鲜花变质损耗</li>
+          <li>• 损耗率超过20%会给出保存建议，可尝试深水醒花、冷藏、每日剪根换水等方法</li>
         </ul>
       </div>
     </div>

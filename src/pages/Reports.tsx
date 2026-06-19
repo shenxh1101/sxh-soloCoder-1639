@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
   TrendingUp,
@@ -8,34 +9,29 @@ import {
   AlertTriangle,
   Flower2,
   Coins,
-  ChevronDown,
-  ChevronUp,
-  X,
+  ChevronRight,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useFlowerStore } from "@/store/useFlowerStore";
-import type { ReportRange, Sale, BouquetSaleStat } from "@/types";
-import Modal from "@/components/Modal";
+import type { ReportRange, BouquetSaleStat } from "@/types";
 
 const COLORS = ["#E8B4B8", "#A8CC95", "#F5D5CB", "#CDE0C1", "#D89CA0"];
 
 type ReportTab = "flower" | "bouquet";
 
 export default function Reports() {
+  const navigate = useNavigate();
   const {
     getSalesData,
     getLossData,
     getProfitSummary,
     getInsights,
     getBouquetSalesStats,
-    getSalesByBouquet,
     flowers,
   } = useFlowerStore();
 
   const [range, setRange] = useState<ReportRange>("week");
   const [tab, setTab] = useState<ReportTab>("flower");
-  const [selectedBouquet, setSelectedBouquet] = useState<BouquetSaleStat | null>(null);
-  const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
 
   const salesData = getSalesData(range);
   const lossData = getLossData(range);
@@ -52,10 +48,6 @@ export default function Reports() {
     const weeklyLoss = getLossData("week");
     return weeklyLoss[0]?.value > 0 ? weeklyLoss[0] : null;
   }, [getLossData]);
-
-  const selectedBouquetSales = selectedBouquet
-    ? getSalesByBouquet(selectedBouquet.bouquetTemplateId, range)
-    : [];
 
   const getFlowerEmoji = (flowerId: string) =>
     flowers.find(f => f.id === flowerId)?.emoji || "🌸";
@@ -302,7 +294,8 @@ export default function Reports() {
                     {topProfitBouquets.map((stat, i) => (
                       <div
                         key={stat.bouquetTemplateId}
-                        className={`rounded-2xl p-4 border-2 ${
+                        onClick={() => navigate(`/bouquet/${stat.bouquetTemplateId}`)}
+                        className={`rounded-2xl p-4 border-2 cursor-pointer group hover:scale-[1.02] transition-all ${
                           i === 0
                             ? "bg-gradient-to-br from-rose-50 to-amber-50 border-rose-300"
                             : i === 1
@@ -317,6 +310,7 @@ export default function Reports() {
                           <span className="text-xs font-medium text-ink/60">
                             利润第{i + 1}名
                           </span>
+                          <ChevronRight className="w-4 h-4 text-ink/30 ml-auto group-hover:text-rose-500 transition-colors" />
                         </div>
                         <div className="text-3xl mb-1">{stat.image}</div>
                         <p className="font-medium text-ink text-sm">{stat.bouquetName}</p>
@@ -339,7 +333,7 @@ export default function Reports() {
                       {bouquetStats.map((stat, i) => (
                         <div
                           key={stat.bouquetTemplateId}
-                          onClick={() => setSelectedBouquet(stat)}
+                          onClick={() => navigate(`/bouquet/${stat.bouquetTemplateId}`)}
                           className="flex items-center gap-4 p-4 rounded-xl bg-rose-50/30 hover:bg-rose-50/60 cursor-pointer transition-colors group"
                         >
                           <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -365,7 +359,7 @@ export default function Reports() {
                             <p className="text-sm font-bold text-leaf-600">¥{stat.totalProfit.toFixed(2)}</p>
                             <p className="text-xs text-ink/50">利润 {stat.profitRate}%</p>
                           </div>
-                          <ChevronDown className="w-4 h-4 text-ink/30 group-hover:text-ink/60 transition-colors" />
+                          <ChevronRight className="w-4 h-4 text-ink/30 group-hover:text-rose-500 transition-colors" />
                         </div>
                       ))}
                     </div>
@@ -468,104 +462,6 @@ export default function Reports() {
           </div>
         )}
       </div>
-
-      <Modal
-        isOpen={!!selectedBouquet}
-        onClose={() => { setSelectedBouquet(null); setExpandedSaleId(null); }}
-        title={selectedBouquet?.bouquetName || ""}
-      >
-        {selectedBouquet && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-rose-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-ink/50">销量</p>
-                <p className="font-serif text-xl font-bold text-rose-500">{selectedBouquet.salesCount} 束</p>
-              </div>
-              <div className="bg-leaf-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-ink/50">总利润</p>
-                <p className="font-serif text-xl font-bold text-leaf-600">¥{selectedBouquet.totalProfit.toFixed(2)}</p>
-              </div>
-              <div className="bg-amber-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-ink/50">利润率</p>
-                <p className="font-serif text-xl font-bold text-amber-600">{selectedBouquet.profitRate}%</p>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-medium text-ink/70 mb-3 flex items-center gap-1.5">
-                <Flower2 className="w-4 h-4 text-rose-400" />
-                {rangeLabel}销售明细（点击展开查看批次）
-              </h4>
-              {selectedBouquetSales.length === 0 ? (
-                <p className="text-sm text-ink/50 text-center py-6">暂无销售记录</p>
-              ) : (
-                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                  {selectedBouquetSales.map((sale: Sale) => {
-                    const isExpanded = expandedSaleId === sale.id;
-                    return (
-                      <div key={sale.id} className="rounded-xl border border-rose-100 overflow-hidden">
-                        <div
-                          onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}
-                          className="flex items-center gap-3 p-3 hover:bg-rose-50/50 cursor-pointer transition-colors"
-                        >
-                          {isExpanded ? (
-                            <ChevronUp className="w-4 h-4 text-ink/40" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-ink/40" />
-                          )}
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-ink">{sale.date}</p>
-                            <p className="text-xs text-ink/50">
-                              成本 ¥{sale.costPrice.toFixed(2)}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-bold text-rose-500">¥{sale.sellPrice.toFixed(2)}</p>
-                            <p className="text-xs text-leaf-600">
-                              利润 ¥{(sale.sellPrice - sale.costPrice).toFixed(2)}
-                            </p>
-                          </div>
-                        </div>
-
-                        {isExpanded && (
-                          <div className="bg-rose-50/30 p-3 pt-0 space-y-2 border-t border-rose-100">
-                            <p className="text-xs font-medium text-ink/60 pt-2">用花 & 批次扣减明细：</p>
-                            {sale.batchDeductions.map((bd) => (
-                              <div key={bd.flowerId} className="bg-white rounded-lg p-2.5">
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <span className="text-lg">{getFlowerEmoji(bd.flowerId)}</span>
-                                  <span className="text-sm font-medium text-ink">
-                                    {getFlowerName(bd.flowerId)}
-                                  </span>
-                                  <span className="text-xs text-ink/50 ml-auto">
-                                    共 {bd.deductions.reduce((s, d) => s + d.quantity, 0)} 枝
-                                  </span>
-                                </div>
-                                <div className="space-y-1 pl-6">
-                                  {bd.deductions.map((d, i) => (
-                                    <div key={i} className="flex items-center justify-between text-xs">
-                                      <span className="text-ink/50">
-                                        批次 {d.batchId.slice(-6)} · ¥{d.unitCost.toFixed(2)}/枝
-                                      </span>
-                                      <span className="text-ink/70">
-                                        扣 {d.quantity} 枝
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

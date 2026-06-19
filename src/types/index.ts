@@ -6,11 +6,51 @@ export interface Flower {
   avgCostPrice: number;
   color: string;
   lowStockThreshold: number;
+  freshDays: number;
 }
 
 export interface FlowerUsage {
   flowerId: string;
   quantity: number;
+}
+
+export interface BouquetRecipeSnapshot {
+  id: string;
+  templateId: string;
+  name: string;
+  flowers: FlowerUsage[];
+  suggestedPrice: number;
+  estimatedCost: number;
+  createdAt: string;
+}
+
+export interface WeeklyTrend {
+  weekStart: string;
+  weekLabel: string;
+  sales: number;
+  loss: number;
+}
+
+export interface BouquetPricePoint {
+  date: string;
+  sellPrice: number;
+  costPrice: number;
+  profit: number;
+}
+
+export interface BouquetDetail {
+  templateId: string;
+  template: BouquetTemplate | undefined;
+  recentSales: Sale[];
+  pricePoints: BouquetPricePoint[];
+  avgCost: number;
+  avgSellPrice: number;
+  avgProfit: number;
+  avgProfitRate: number;
+  totalSales: number;
+  totalRevenue: number;
+  totalProfit: number;
+  topBatchFlowers: { flowerId: string; name: string; emoji: string; totalQty: number; avgCost: number }[];
 }
 
 export interface FlowerBatch {
@@ -22,12 +62,21 @@ export interface FlowerBatch {
   costPrice: number;
 }
 
+export interface BatchUsageRecord {
+  batchId: string;
+  date: string;
+  quantity: number;
+  type: "sale" | "loss";
+  relatedId: string;
+}
+
 export interface Purchase {
   id: string;
   flowerId: string;
   quantity: number;
   costPrice: number;
   date: string;
+  batchId: string;
 }
 
 export interface BouquetTemplate {
@@ -38,6 +87,7 @@ export interface BouquetTemplate {
   suggestedPrice: number;
   flowers: FlowerUsage[];
   isCustom?: boolean;
+  recipeSnapshots?: BouquetRecipeSnapshot[];
 }
 
 export interface BatchDeduction {
@@ -54,6 +104,7 @@ export interface Sale {
   costPrice: number;
   date: string;
   flowersUsed: FlowerUsage[];
+  recipeSnapshot?: Omit<BouquetRecipeSnapshot, "id" | "createdAt">;
   batchDeductions: { flowerId: string; deductions: BatchDeduction[] }[];
 }
 
@@ -69,7 +120,7 @@ export interface Loss {
 
 export type ReportRange = "week" | "month";
 
-export type PurchaseSuggestionLevel = "urgent" | "suggest" | "hold" | "reduce";
+export type PurchaseSuggestionLevel = "urgent" | "suggest" | "hold" | "reduce" | "trending-up";
 
 export interface PurchaseSuggestion {
   flowerId: string;
@@ -81,6 +132,9 @@ export interface PurchaseSuggestion {
   suggestedQuantity: number;
   level: PurchaseSuggestionLevel;
   reason: string;
+  freshDays: number;
+  trends: WeeklyTrend[];
+  trendHint?: "up" | "down" | "stable";
 }
 
 export interface BouquetSaleStat {
@@ -100,16 +154,21 @@ export interface FlowerStoreState {
   batches: FlowerBatch[];
   purchases: Purchase[];
   bouquetTemplates: BouquetTemplate[];
+  recipeSnapshots: BouquetRecipeSnapshot[];
   sales: Sale[];
   losses: Loss[];
 
   addPurchase: (flowerId: string, quantity: number, costPrice: number, date?: string) => void;
   getFlowerBatches: (flowerId: string) => FlowerBatch[];
+  getBatchUsageRecords: (batchId: string) => BatchUsageRecord[];
+  getInventoryValueBreakdown: (flowerId: string) => { batches: { batch: FlowerBatch; value: number }[]; total: number; explanation: string };
   checkBouquetStock: (bouquetId: string) => { enough: boolean; shortages: { name: string; needed: number; available: number }[] };
   calculateBouquetCost: (bouquetId: string) => number;
+  estimateBouquetCost: (flowers: FlowerUsage[]) => number;
   makeBouquet: (bouquetId: string, sellPrice: number) => { success: boolean; message?: string };
   addLoss: (flowerId: string, quantity: number, note?: string) => { success: boolean; message?: string };
   addCustomBouquetTemplate: (template: Omit<BouquetTemplate, "id" | "isCustom">) => void;
+  updateBouquetTemplate: (templateId: string, updates: Partial<BouquetTemplate>) => { success: boolean; message?: string };
   deleteBouquetTemplate: (templateId: string) => void;
 
   getTodayStats: () => { salesCount: number; lossAmount: number };
@@ -120,6 +179,8 @@ export interface FlowerStoreState {
   getInsights: () => string[];
 
   getPurchaseSuggestions: () => PurchaseSuggestion[];
+  getWeeklyTrends: (flowerId: string, weeks?: number) => WeeklyTrend[];
   getBouquetSalesStats: (range: ReportRange) => BouquetSaleStat[];
   getSalesByBouquet: (bouquetId: string, range: ReportRange) => Sale[];
+  getBouquetDetail: (bouquetId: string, range: ReportRange) => BouquetDetail;
 }
