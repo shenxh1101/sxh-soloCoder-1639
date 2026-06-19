@@ -111,13 +111,19 @@ export default function BouquetMaker() {
     });
 
     if (result.success) {
+      const latestTemplate = useFlowerStore
+        .getState()
+        .bouquetTemplates.find((t) => t.id === selectedBouquet.id);
+      if (latestTemplate) {
+        setSelectedBouquet(latestTemplate);
+        setSellPrice(String(latestTemplate.suggestedPrice));
+      }
       setEditSavedMessage("配方已保存，历史订单不受影响 ✓");
       setTimeout(() => {
         setIsEditingRecipe(false);
         setEditSavedMessage("");
-        setSelectedBouquet(
-          bouquetTemplates.find((t) => t.id === selectedBouquet.id) || null
-        );
+        setEditFlowers([]);
+        setEditSuggestedPrice("");
       }, 1200);
     }
   };

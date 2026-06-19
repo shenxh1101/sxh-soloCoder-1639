@@ -9,6 +9,12 @@ export interface Flower {
   freshDays: number;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  contact?: string;
+}
+
 export interface FlowerUsage {
   flowerId: string;
   quantity: number;
@@ -60,6 +66,7 @@ export interface FlowerBatch {
   initialQuantity: number;
   remainingQuantity: number;
   costPrice: number;
+  supplierId?: string;
 }
 
 export interface BatchUsageRecord {
@@ -68,6 +75,16 @@ export interface BatchUsageRecord {
   quantity: number;
   type: "sale" | "loss";
   relatedId: string;
+  relatedName?: string;
+}
+
+export interface BatchLedgerEntry {
+  date: string;
+  type: "in" | "out-sale" | "out-loss";
+  quantity: number;
+  balance: number;
+  note?: string;
+  relatedId?: string;
 }
 
 export interface Purchase {
@@ -77,6 +94,14 @@ export interface Purchase {
   costPrice: number;
   date: string;
   batchId: string;
+  supplierId?: string;
+}
+
+export interface OrderPlanItem {
+  flowerId: string;
+  quantity: number;
+  unitPrice: number;
+  selected: boolean;
 }
 
 export interface BouquetTemplate {
@@ -149,18 +174,32 @@ export interface BouquetSaleStat {
   profitRate: number;
 }
 
+export interface SupplierStat {
+  supplierId: string | null;
+  supplierName: string;
+  totalPurchases: number;
+  totalAmount: number;
+  flowers: { flowerId: string; name: string; emoji: string; totalQty: number; avgPrice: number; totalAmount: number }[];
+  lossQty: number;
+  lossRate: number;
+}
+
 export interface FlowerStoreState {
   flowers: Flower[];
   batches: FlowerBatch[];
   purchases: Purchase[];
+  suppliers: Supplier[];
   bouquetTemplates: BouquetTemplate[];
   recipeSnapshots: BouquetRecipeSnapshot[];
   sales: Sale[];
   losses: Loss[];
+  orderPlan: OrderPlanItem[];
 
-  addPurchase: (flowerId: string, quantity: number, costPrice: number, date?: string) => void;
-  getFlowerBatches: (flowerId: string) => FlowerBatch[];
+  addPurchase: (flowerId: string, quantity: number, costPrice: number, date?: string, supplierId?: string) => void;
+  addSupplier: (name: string, contact?: string) => string;
+  getFlowerBatches: (flowerId: string, includeEmpty?: boolean) => FlowerBatch[];
   getBatchUsageRecords: (batchId: string) => BatchUsageRecord[];
+  getBatchLedger: (batchId: string) => BatchLedgerEntry[];
   getInventoryValueBreakdown: (flowerId: string) => { batches: { batch: FlowerBatch; value: number }[]; total: number; explanation: string };
   checkBouquetStock: (bouquetId: string) => { enough: boolean; shortages: { name: string; needed: number; available: number }[] };
   calculateBouquetCost: (bouquetId: string) => number;
@@ -183,4 +222,10 @@ export interface FlowerStoreState {
   getBouquetSalesStats: (range: ReportRange) => BouquetSaleStat[];
   getSalesByBouquet: (bouquetId: string, range: ReportRange) => Sale[];
   getBouquetDetail: (bouquetId: string, range: ReportRange) => BouquetDetail;
+  getSupplierStats: (range: ReportRange) => SupplierStat[];
+
+  setOrderPlanItem: (flowerId: string, quantity: number, selected: boolean) => void;
+  clearOrderPlanItem: (flowerId: string) => void;
+  clearOrderPlan: () => void;
+  getOrderPlanSummary: () => { items: (OrderPlanItem & { name: string; emoji: string; totalPrice: number; sellableDays: number })[]; totalAmount: number };
 }

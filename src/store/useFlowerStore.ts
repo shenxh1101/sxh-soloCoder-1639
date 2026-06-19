@@ -18,6 +18,10 @@ import {
   BouquetDetail,
   BatchUsageRecord,
   FlowerUsage,
+  Supplier,
+  BatchLedgerEntry,
+  OrderPlanItem,
+  SupplierStat,
 } from "@/types";
 
 function todayStr() {
@@ -227,18 +231,33 @@ const initialTemplates: BouquetTemplate[] = [
   },
 ];
 
+const initialSuppliers: Supplier[] = [
+  { id: "sup-1", name: "云南鲜花基地直供", contact: "13800138001" },
+  { id: "sup-2", name: "本地花卉批发市场", contact: "13900139002" },
+  { id: "sup-3", name: "进口花卉代理", contact: "13700137003" },
+];
+
 export const useFlowerStore = create<FlowerStoreState>()(
   persist(
     (set, get) => ({
       flowers: initialFlowers,
       batches: [],
       purchases: [],
+      suppliers: initialSuppliers,
       bouquetTemplates: initialTemplates,
       recipeSnapshots: [],
       sales: [],
       losses: [],
+      orderPlan: [],
 
-      addPurchase: (flowerId, quantity, costPrice, date) => {
+      addSupplier: (name, contact) => {
+        const id = `sup-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+        const state = get();
+        set({ suppliers: [...state.suppliers, { id, name, contact }] });
+        return id;
+      },
+
+      addPurchase: (flowerId, quantity, costPrice, date, supplierId) => {
         const state = get();
         const purchaseDate = date || todayStr();
         const batchId = `batch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -250,6 +269,7 @@ export const useFlowerStore = create<FlowerStoreState>()(
           initialQuantity: quantity,
           remainingQuantity: quantity,
           costPrice,
+          supplierId,
         };
 
         const newPurchase: Purchase = {
@@ -259,22 +279,42 @@ export const useFlowerStore = create<FlowerStoreState>()(
           costPrice,
           date: purchaseDate,
           batchId,
+          supplierId,
         };
 
         const newBatches = [...state.batches, newBatch];
         const newFlowers = recalcFlowerStats(state.flowers, newBatches);
 
+        const existingPlanIdx = state.orderPlan.findIndex((p) => p.flowerId === flowerId);
+        let newOrderPlan = state.orderPlan;
+        if (existingPlanIdx >= 0) {
+          const remaining = state.orderPlan[existingPlanIdx].quantity - quantity;
+          if (remaining <= 0) {
+            newOrderPlan = state.orderPlan.filter((_, i) => i !== existingPlanIdx);
+          } else {
+            newOrderPlan = state.orderPlan.map((p, i) =>
+              i === existingPlanIdx ? { ...p, quantity: remaining } : p
+            );
+          }
+        }
+
         set({
           batches: newBatches,
           purchases: [...state.purchases, newPurchase],
           flowers: newFlowers,
+          orderPlan: newOrderPlan,
         });
       },
 
-      getFlowerBatches: (flowerId) => {
-        return get().batches.filter(
-          (b) => b.flowerId === flowerId && b.remainingQuantity > 0
-        );
+      getFlowerBatches: (flowerId, includeEmpty = false) => {
+        return get()
+          .batches.filter(
+            (b) => b.flowerId === flowerId && (includeEmpty || b.remainingQuantity > 0)
+          )
+          .sort(
+            (a, b) =>
+              a.purchaseDate.localeCompare(b.purchaseDate) || a.id.localeCompare(b.id)
+          );
       },
 
       getBatchUsageRecords: (batchId) => {
@@ -291,6 +331,7 @@ export const useFlowerStore = create<FlowerStoreState>()(
                 quantity: match.quantity,
                 type: "sale",
                 relatedId: sale.id,
+                relatedName: sale.bouquetName,
               });
             }
           }
@@ -305,11 +346,44 @@ export const useFlowerStore = create<FlowerStoreState>()(
               quantity: match.quantity,
               type: "loss",
               relatedId: loss.id,
+              relatedName: loss.note || "损耗",
             });
           }
         }
 
         return records.sort((a, b) => b.date.localeCompare(a.date));
+      },
+
+      getBatchLedger: (batchId) => {
+        const state = get();
+        const batch = state.batches.find((b) => b.id === batchId);
+        if (!batch) return [];
+
+        const ledger: BatchLedgerEntry[] = [];
+        ledger.push({
+          date: batch.purchaseDate,
+          type: "in",
+          quantity: batch.initialQuantity,
+          balance: batch.initialQuantity,
+          note: `进货 · ${batch.initialQuantity}枝×¥${batch.costPrice.toFixed(2)}`,
+        });
+
+        const usageRecords = state.getBatchUsageRecords(batchId).reverse();
+        let runningBalance = batch.initialQuantity;
+
+        for (const record of usageRecords) {
+          runningBalance -= record.quantity;
+          ledger.push({
+            date: record.date,
+            type: record.type === "sale" ? "out-sale" : "out-loss",
+            quantity: record.quantity,
+            balance: runningBalance,
+            note: record.type === "sale" ? `售出 ${record.relatedName || ""}` : `损耗${record.relatedName ? " · " + record.relatedName : ""}`,
+            relatedId: record.relatedId,
+          });
+        }
+
+        return ledger;
       },
 
       getInventoryValueBreakdown: (flowerId) => {
@@ -1091,9 +1165,166 @@ export const useFlowerStore = create<FlowerStoreState>()(
           topBatchFlowers,
         };
       },
+
+      getSupplierStats: (range) => {
+        const state = get();
+        const rangeStart = getRangeStart(range);
+        const rangePurchases = state.purchases.filter((p) => p.date >= rangeStart);
+
+        const supplierMap = new Map<string | null, {
+          totalPurchases: number;
+          totalAmount: number;
+          flowerMap: Map<string, { totalQty: number; totalAmount: number }>;
+          lossQty: number;
+          batchIds: Set<string>;
+        }>();
+
+        for (const purchase of rangePurchases) {
+          const key = purchase.supplierId || null;
+          const existing = supplierMap.get(key) || {
+            totalPurchases: 0,
+            totalAmount: 0,
+            flowerMap: new Map(),
+            lossQty: 0,
+            batchIds: new Set<string>(),
+          };
+          existing.totalPurchases += 1;
+          existing.totalAmount += purchase.quantity * purchase.costPrice;
+          existing.batchIds.add(purchase.batchId);
+
+          const fData = existing.flowerMap.get(purchase.flowerId) || { totalQty: 0, totalAmount: 0 };
+          fData.totalQty += purchase.quantity;
+          fData.totalAmount += purchase.quantity * purchase.costPrice;
+          existing.flowerMap.set(purchase.flowerId, fData);
+
+          supplierMap.set(key, existing);
+        }
+
+        for (const loss of state.losses) {
+          if (loss.date < rangeStart) continue;
+          for (const bd of loss.batchDeductions) {
+            const batch = state.batches.find((b) => b.id === bd.batchId);
+            if (!batch) continue;
+            const key = batch.supplierId || null;
+            const data = supplierMap.get(key);
+            if (data) {
+              data.lossQty += bd.quantity;
+            }
+          }
+        }
+
+        const stats: SupplierStat[] = [];
+        for (const [supplierId, data] of supplierMap.entries()) {
+          const supplier = state.suppliers.find((s) => s.id === supplierId);
+          const flowers: SupplierStat["flowers"] = [];
+          let totalPurchaseQty = 0;
+
+          for (const [flowerId, fData] of data.flowerMap.entries()) {
+            const flower = state.flowers.find((f) => f.id === flowerId);
+            totalPurchaseQty += fData.totalQty;
+            flowers.push({
+              flowerId,
+              name: flower?.name || flowerId,
+              emoji: flower?.emoji || "🌸",
+              totalQty: fData.totalQty,
+              avgPrice: fData.totalQty > 0 ? Math.round((fData.totalAmount / fData.totalQty) * 100) / 100 : 0,
+              totalAmount: Math.round(fData.totalAmount * 100) / 100,
+            });
+          }
+
+          flowers.sort((a, b) => b.totalAmount - a.totalAmount);
+
+          stats.push({
+            supplierId,
+            supplierName: supplier?.name || "未标注供应商",
+            totalPurchases: data.totalPurchases,
+            totalAmount: Math.round(data.totalAmount * 100) / 100,
+            flowers,
+            lossQty: data.lossQty,
+            lossRate: totalPurchaseQty > 0 ? Math.round((data.lossQty / totalPurchaseQty) * 10000) / 100 : 0,
+          });
+        }
+
+        return stats.sort((a, b) => b.totalAmount - a.totalAmount);
+      },
+
+      setOrderPlanItem: (flowerId, quantity, selected) => {
+        const state = get();
+        const flower = state.flowers.find((f) => f.id === flowerId);
+        const existingIdx = state.orderPlan.findIndex((p) => p.flowerId === flowerId);
+
+        let newPlan: OrderPlanItem[];
+        if (existingIdx >= 0) {
+          if (!selected) {
+            newPlan = state.orderPlan.filter((_, i) => i !== existingIdx);
+          } else {
+            newPlan = state.orderPlan.map((p, i) =>
+              i === existingIdx
+                ? {
+                    ...p,
+                    quantity: Math.max(0, quantity),
+                    selected,
+                  }
+                : p
+            );
+          }
+        } else if (selected && quantity > 0) {
+          newPlan = [
+            ...state.orderPlan,
+            {
+              flowerId,
+              quantity,
+              unitPrice: flower?.avgCostPrice || 0,
+              selected: true,
+            },
+          ];
+        } else {
+          return;
+        }
+
+        set({ orderPlan: newPlan });
+      },
+
+      clearOrderPlanItem: (flowerId) => {
+        const state = get();
+        set({
+          orderPlan: state.orderPlan.filter((p) => p.flowerId !== flowerId),
+        });
+      },
+
+      clearOrderPlan: () => {
+        set({ orderPlan: [] });
+      },
+
+      getOrderPlanSummary: () => {
+        const state = get();
+        const selected = state.orderPlan.filter((p) => p.selected);
+        const items = selected.map((p) => {
+          const flower = state.flowers.find((f) => f.id === p.flowerId);
+          const weeklyData = state.getSalesData("week");
+          const weeklyLoss = state.getLossData("week");
+          const weeklyUsage = weeklyData.find((d) => d.name === flower?.name)?.value || 0;
+          const weeklyLossQty = weeklyLoss.find((d) => d.name === flower?.name)?.totalAmount || 0;
+          const weeklyConsume = weeklyUsage + weeklyLossQty;
+          const totalStock = (flower?.currentStock || 0) + p.quantity;
+          const sellableDays = weeklyConsume > 0 ? Math.round((totalStock / weeklyConsume) * 7) : 999;
+          return {
+            ...p,
+            name: flower?.name || p.flowerId,
+            emoji: flower?.emoji || "🌸",
+            totalPrice: Math.round(p.quantity * p.unitPrice * 100) / 100,
+            sellableDays,
+          };
+        });
+        const totalAmount = items.reduce((sum, i) => sum + i.totalPrice, 0);
+        return {
+          items,
+          totalAmount: Math.round(totalAmount * 100) / 100,
+        };
+      },
     }),
     {
-      name: "flower-shop-store-v3",
+      name: "flower-shop-store-v4",
     }
   )
 );

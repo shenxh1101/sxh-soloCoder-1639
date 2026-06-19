@@ -10,14 +10,16 @@ import {
   Flower2,
   Coins,
   ChevronRight,
+  Truck,
+  Building2,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useFlowerStore } from "@/store/useFlowerStore";
-import type { ReportRange, BouquetSaleStat } from "@/types";
+import type { ReportRange, BouquetSaleStat, SupplierStat } from "@/types";
 
 const COLORS = ["#E8B4B8", "#A8CC95", "#F5D5CB", "#CDE0C1", "#D89CA0"];
 
-type ReportTab = "flower" | "bouquet";
+type ReportTab = "flower" | "bouquet" | "supplier";
 
 export default function Reports() {
   const navigate = useNavigate();
@@ -28,6 +30,8 @@ export default function Reports() {
     getInsights,
     getBouquetSalesStats,
     flowers,
+    getSupplierStats,
+    suppliers,
   } = useFlowerStore();
 
   const [range, setRange] = useState<ReportRange>("week");
@@ -155,7 +159,7 @@ export default function Reports() {
         <div className="flex border-b border-rose-50">
           <button
             onClick={() => setTab("flower")}
-            className={`flex-1 px-6 py-3.5 text-sm font-medium transition-all ${
+            className={`flex-1 px-4 sm:px-6 py-3.5 text-sm font-medium transition-all ${
               tab === "flower"
                 ? "text-rose-600 border-b-2 border-rose-500 bg-rose-50/30"
                 : "text-ink/50 hover:text-ink/70 hover:bg-rose-50/20"
@@ -163,12 +167,12 @@ export default function Reports() {
           >
             <div className="flex items-center justify-center gap-2">
               <Flower2 className="w-4 h-4" />
-              花材用量排行
+              花材用量
             </div>
           </button>
           <button
             onClick={() => setTab("bouquet")}
-            className={`flex-1 px-6 py-3.5 text-sm font-medium transition-all ${
+            className={`flex-1 px-4 sm:px-6 py-3.5 text-sm font-medium transition-all ${
               tab === "bouquet"
                 ? "text-rose-600 border-b-2 border-rose-500 bg-rose-50/30"
                 : "text-ink/50 hover:text-ink/70 hover:bg-rose-50/20"
@@ -176,7 +180,20 @@ export default function Reports() {
           >
             <div className="flex items-center justify-center gap-2">
               <Coins className="w-4 h-4" />
-              花束样式排行
+              花束排行
+            </div>
+          </button>
+          <button
+            onClick={() => setTab("supplier")}
+            className={`flex-1 px-4 sm:px-6 py-3.5 text-sm font-medium transition-all ${
+              tab === "supplier"
+                ? "text-rose-600 border-b-2 border-rose-500 bg-rose-50/30"
+                : "text-ink/50 hover:text-ink/70 hover:bg-rose-50/20"
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Truck className="w-4 h-4" />
+              供应商分析
             </div>
           </button>
         </div>
@@ -379,6 +396,168 @@ export default function Reports() {
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {tab === "supplier" && (
+            <div className="space-y-6">
+              {(() => {
+                const supplierStats = getSupplierStats(range);
+                if (supplierStats.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="text-5xl mb-4">🚚</div>
+                      <p className="text-sm text-ink/50">{rangeLabel}还没有进货记录</p>
+                      <p className="text-xs text-ink/40 mt-1">去「库存台账」或「采购建议」登记进货吧</p>
+                    </div>
+                  );
+                }
+                return (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {supplierStats.map((stat, i) => (
+                        <div
+                          key={stat.supplierId || "unknown"}
+                          className={`rounded-2xl p-5 border-2 ${
+                            i === 0
+                              ? "bg-gradient-to-br from-leaf-50 to-cream border-leaf-200"
+                              : i === 1
+                              ? "bg-gradient-to-br from-amber-50 to-cream border-amber-200"
+                              : "bg-gradient-to-br from-rose-50 to-cream border-rose-200"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center">
+                              <Building2 className="w-4 h-4 text-rose-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-ink">
+                                {stat.supplierName}
+                              </p>
+                              <p className="text-[10px] text-ink/50">
+                                {stat.totalPurchases} 笔进货
+                              </p>
+                            </div>
+                            <span className="ml-auto text-xs bg-white/80 px-2 py-0.5 rounded-full text-ink/60">
+                              第{i + 1}名
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 mb-3">
+                            <div className="bg-white/70 rounded-lg p-2">
+                              <p className="text-[10px] text-ink/50">进货总额</p>
+                              <p className="font-serif text-lg font-bold text-ink">
+                                ¥{stat.totalAmount.toFixed(2)}
+                              </p>
+                            </div>
+                            <div className="bg-white/70 rounded-lg p-2">
+                              <p className="text-[10px] text-ink/50">损耗率</p>
+                              <p
+                                className={`font-serif text-lg font-bold ${
+                                  stat.lossRate > 15
+                                    ? "text-red-500"
+                                    : stat.lossRate > 8
+                                    ? "text-amber-500"
+                                    : "text-leaf-600"
+                                }`}
+                              >
+                                {stat.lossRate}%
+                              </p>
+                            </div>
+                          </div>
+                          {stat.lossQty > 0 && (
+                            <p className="text-[11px] text-ink/50">
+                              共损耗 {stat.lossQty} 枝花材
+                              {stat.lossRate > 10 && (
+                                <span className="text-red-500 ml-1">
+                                  （损耗偏高，建议考虑更换）
+                                </span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-ink flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-rose-400" />
+                        {rangeLabel}供应商进价 & 花材明细
+                      </h4>
+                      {supplierStats.map((stat) => (
+                        <div
+                          key={stat.supplierId || "unknown"}
+                          className="bg-rose-50/30 rounded-xl p-4"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="font-medium text-ink flex items-center gap-2">
+                              <Building2 className="w-4 h-4 text-rose-400" />
+                              {stat.supplierName}
+                            </p>
+                            <div className="text-right">
+                              <span className="text-xs text-ink/50">
+                                平均损耗率
+                              </span>
+                              <span
+                                className={`ml-2 text-sm font-bold ${
+                                  stat.lossRate > 15
+                                    ? "text-red-500"
+                                    : stat.lossRate > 8
+                                    ? "text-amber-500"
+                                    : "text-leaf-600"
+                                }`}
+                              >
+                                {stat.lossRate}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            {stat.flowers.map((f) => (
+                              <div
+                                key={f.flowerId}
+                                className="flex items-center gap-3 bg-white rounded-lg px-3 py-2"
+                              >
+                                <span className="text-xl">{f.emoji}</span>
+                                <div className="flex-1">
+                                  <p className="text-sm text-ink">{f.name}</p>
+                                  <p className="text-[11px] text-ink/50">
+                                    共采购 {f.totalQty} 枝，合计 ¥
+                                    {f.totalAmount.toFixed(2)}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xs text-ink/50">平均进价</p>
+                                  <p className="font-serif font-bold text-rose-500">
+                                    ¥{f.avgPrice.toFixed(2)}/枝
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {supplierStats.length >= 2 && (
+                      <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4">
+                        <h5 className="text-sm font-medium text-amber-700 flex items-center gap-1.5 mb-2">
+                          <Lightbulb className="w-4 h-4" />
+                          采购建议
+                        </h5>
+                        <p className="text-xs text-amber-600">
+                          {(() => {
+                            const sortedByLoss = [...supplierStats].sort(
+                              (a, b) => a.lossRate - b.lossRate,
+                            );
+                            const best = sortedByLoss[0];
+                            const worst = sortedByLoss[sortedByLoss.length - 1];
+                            return `${best.supplierName} 的损耗率最低（${best.lossRate}%），${worst.supplierName} 损耗率较高（${worst.lossRate}%），下次进货可以优先考虑 ${best.supplierName}，或与 ${worst.supplierName} 沟通品质问题。`;
+                          })()}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
