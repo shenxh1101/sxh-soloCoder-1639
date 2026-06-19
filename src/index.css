@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap");
+
+:root {
+  font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  color: #4a4a4a;
+  background-color: #fdf8f5;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+@layer utilities {
+  .card-shadow {
+    box-shadow: 0 2px 12px rgba(201, 123, 132, 0.08), 0 1px 4px rgba(74, 74, 74, 0.04);
+  }
+  .card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(201, 123, 132, 0.12), 0 2px 8px rgba(74, 74, 74, 0.06);
+  }
+  .gradient-rose {
+    background: linear-gradient(135deg, #f5d5cb 0%, #e8b4b8 100%);
+  }
+  .gradient-leaf {
+    background: linear-gradient(135deg, #cde0c1 0%, #a8cc95 100%);
+  }
+  .gradient-cream {
+    background: linear-gradient(135deg, #fdf8f5 0%, #faeae8 100%);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #faeae8;
+}
+::-webkit-scrollbar-thumb {
+  background: #e8b4b8;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d89ca0;
+}
