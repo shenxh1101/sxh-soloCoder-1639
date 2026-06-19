@@ -5,6 +5,7 @@ import Inventory from "@/pages/Inventory";
 import BouquetMaker from "@/pages/BouquetMaker";
 import LossRecord from "@/pages/LossRecord";
 import Reports from "@/pages/Reports";
+import PurchaseSuggestion from "@/pages/PurchaseSuggestion";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/bouquet" element={<BouquetMaker />} />
           <Route path="/loss" element={<LossRecord />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/purchase" element={<PurchaseSuggestion />} />
         </Route>
       </Routes>
     </Router>

@@ -69,6 +69,32 @@ export interface Loss {
 
 export type ReportRange = "week" | "month";
 
+export type PurchaseSuggestionLevel = "urgent" | "suggest" | "hold" | "reduce";
+
+export interface PurchaseSuggestion {
+  flowerId: string;
+  name: string;
+  emoji: string;
+  currentStock: number;
+  weeklyUsage: number;
+  weeklyLoss: number;
+  suggestedQuantity: number;
+  level: PurchaseSuggestionLevel;
+  reason: string;
+}
+
+export interface BouquetSaleStat {
+  bouquetTemplateId: string;
+  bouquetName: string;
+  image: string;
+  salesCount: number;
+  totalRevenue: number;
+  totalCost: number;
+  totalProfit: number;
+  avgProfit: number;
+  profitRate: number;
+}
+
 export interface FlowerStoreState {
   flowers: Flower[];
   batches: FlowerBatch[];
@@ -92,4 +118,8 @@ export interface FlowerStoreState {
   getProfitSummary: (range: ReportRange) => { revenue: number; cost: number; profit: number; salesCount: number };
   getTotalInventoryValue: () => number;
   getInsights: () => string[];
+
+  getPurchaseSuggestions: () => PurchaseSuggestion[];
+  getBouquetSalesStats: (range: ReportRange) => BouquetSaleStat[];
+  getSalesByBouquet: (bouquetId: string, range: ReportRange) => Sale[];
 }

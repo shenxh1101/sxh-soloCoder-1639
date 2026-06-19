@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, Package, Flower2, Trash2, BarChart3, Sprout } from "lucide-react";
+import { LayoutDashboard, Package, Flower2, Trash2, BarChart3, Sprout, ShoppingCart } from "lucide-react";
 
 const navItems = [
   { path: "/", label: "首页", icon: LayoutDashboard },
@@ -7,6 +7,7 @@ const navItems = [
   { path: "/bouquet", label: "花束制作", icon: Flower2 },
   { path: "/loss", label: "损耗记录", icon: Trash2 },
   { path: "/reports", label: "数据报表", icon: BarChart3 },
+  { path: "/purchase", label: "采购建议", icon: ShoppingCart },
 ];
 
 export default function Layout() {

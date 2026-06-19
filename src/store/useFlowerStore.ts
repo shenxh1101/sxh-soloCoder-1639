@@ -10,6 +10,9 @@ import type {
   FlowerStoreState,
   ReportRange,
   BatchDeduction,
+  PurchaseSuggestion,
+  BouquetSaleStat,
+  PurchaseSuggestionLevel,
 } from "@/types";
 
 const todayStr = () => new Date().toISOString().split("T")[0];
@@ -427,6 +430,133 @@ export const useFlowerStore = create<FlowerStoreState>()(
         }
 
         return insights;
+      },
+
+      getPurchaseSuggestions: () => {
+        const state = get();
+        const weeklySales = state.getSalesData("week");
+        const weeklyLoss = state.getLossData("week");
+
+        const salesMap = new Map<string, number>();
+        weeklySales.forEach(s => salesMap.set(s.name, s.value));
+
+        const lossMap = new Map<string, { value: number; totalAmount: number }>();
+        weeklyLoss.forEach(l => lossMap.set(l.name, { value: l.value, totalAmount: l.totalAmount }));
+
+        const suggestions: PurchaseSuggestion[] = state.flowers.map(flower => {
+          const weeklyUsage = salesMap.get(flower.name) || 0;
+          const weeklyLossQty = lossMap.get(flower.name)?.totalAmount || 0;
+          const weeklyTotalConsume = weeklyUsage + weeklyLossQty;
+          const currentStock = flower.currentStock;
+
+          let suggestedQuantity = 0;
+          let level: PurchaseSuggestionLevel = "hold";
+          let reason = "";
+
+          const safeStock = flower.lowStockThreshold;
+          const twoWeekDemand = weeklyTotalConsume * 2;
+          const oneWeekDemand = weeklyTotalConsume;
+
+          if (currentStock === 0) {
+            level = "urgent";
+            suggestedQuantity = Math.max(twoWeekDemand, safeStock);
+            reason = "已售罄，急需补货";
+          } else if (currentStock < safeStock) {
+            level = "urgent";
+            suggestedQuantity = Math.max(twoWeekDemand - currentStock, safeStock - currentStock);
+            reason = "库存低于安全线，建议尽快补货";
+          } else if (weeklyTotalConsume === 0 && currentStock > safeStock) {
+            level = "reduce";
+            suggestedQuantity = 0;
+            reason = "本周没有消耗，库存充足，暂时不用进货";
+          } else if (currentStock > twoWeekDemand * 1.5) {
+            level = "reduce";
+            suggestedQuantity = 0;
+            reason = "库存超过两周用量，建议少进一点";
+          } else if (currentStock < oneWeekDemand) {
+            level = "suggest";
+            suggestedQuantity = twoWeekDemand - currentStock;
+            reason = "库存不足一周用量，建议补货";
+          } else if (weeklyLossQty > 0 && weeklyLossQty / weeklyTotalConsume > 0.3) {
+            level = "reduce";
+            suggestedQuantity = Math.max(0, oneWeekDemand - currentStock);
+            reason = "损耗率较高（>30%），建议减少进货量";
+          } else {
+            level = "hold";
+            suggestedQuantity = Math.max(0, twoWeekDemand - currentStock);
+            reason = "库存合理，可按需少量补货";
+          }
+
+          suggestedQuantity = Math.max(0, Math.round(suggestedQuantity));
+
+          return {
+            flowerId: flower.id,
+            name: flower.name,
+            emoji: flower.emoji,
+            currentStock,
+            weeklyUsage,
+            weeklyLoss: weeklyLossQty,
+            suggestedQuantity,
+            level,
+            reason,
+          };
+        });
+
+        const levelOrder: Record<PurchaseSuggestionLevel, number> = {
+          urgent: 0,
+          suggest: 1,
+          reduce: 2,
+          hold: 3,
+        };
+        return suggestions.sort((a, b) => levelOrder[a.level] - levelOrder[b.level]);
+      },
+
+      getBouquetSalesStats: (range) => {
+        const state = get();
+        const rangeStart = getRangeStart(range);
+        const rangeSales = state.sales.filter(s => s.date >= rangeStart);
+
+        const statMap = new Map<string, BouquetSaleStat>();
+
+        for (const sale of rangeSales) {
+          const existing = statMap.get(sale.bouquetTemplateId);
+          if (existing) {
+            existing.salesCount += 1;
+            existing.totalRevenue += sale.sellPrice;
+            existing.totalCost += sale.costPrice;
+            existing.totalProfit += sale.sellPrice - sale.costPrice;
+          } else {
+            const template = state.bouquetTemplates.find(t => t.id === sale.bouquetTemplateId);
+            statMap.set(sale.bouquetTemplateId, {
+              bouquetTemplateId: sale.bouquetTemplateId,
+              bouquetName: sale.bouquetName,
+              image: template?.image || "💐",
+              salesCount: 1,
+              totalRevenue: sale.sellPrice,
+              totalCost: sale.costPrice,
+              totalProfit: sale.sellPrice - sale.costPrice,
+              avgProfit: 0,
+              profitRate: 0,
+            });
+          }
+        }
+
+        return Array.from(statMap.values()).map(stat => ({
+          ...stat,
+          totalRevenue: Math.round(stat.totalRevenue * 100) / 100,
+          totalCost: Math.round(stat.totalCost * 100) / 100,
+          totalProfit: Math.round(stat.totalProfit * 100) / 100,
+          avgProfit: Math.round((stat.totalProfit / stat.salesCount) * 100) / 100,
+          profitRate: stat.totalRevenue > 0 ? Math.round((stat.totalProfit / stat.totalRevenue) * 10000) / 100 : 0,
+        })).sort((a, b) => b.salesCount - a.salesCount);
+      },
+
+      getSalesByBouquet: (bouquetId, range) => {
+        const state = get();
+        const rangeStart = getRangeStart(range);
+        return state.sales
+          .filter(s => s.bouquetTemplateId === bouquetId && s.date >= rangeStart)
+          .sort((a, b) => b.date.localeCompare(a.date));
       },
     }),
     {

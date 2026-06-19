@@ -139,38 +139,76 @@ export default function Inventory() {
                       <tr key={`${flower.id}-detail`} className="bg-rose-50/30">
                         <td colSpan={8} className="px-5 py-4">
                           <div className="pl-8">
-                            <p className="text-xs font-medium text-ink/60 mb-3 flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5" />
-                              {flower.name} 进货批次（按日期从新到旧，扣减时优先用最旧批次）
-                            </p>
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="text-xs font-medium text-ink/60 flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5" />
+                                {flower.name} 在库批次（按FIFO顺序排列，优先扣减最上方最早批次）
+                              </p>
+                              <span className="text-xs bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full">
+                                共 {batches.length} 批 · 总库存 {batches.reduce((s, b) => s + b.remainingQuantity, 0)} 枝
+                              </span>
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {batches.map((batch, idx) => {
+                              {[...batches].sort((a, b) => a.purchaseDate.localeCompare(b.purchaseDate) || a.id.localeCompare(b.id)).map((batch, idx) => {
                                 const usagePct = ((batch.initialQuantity - batch.remainingQuantity) / batch.initialQuantity) * 100;
+                                const isUsed = batch.remainingQuantity < batch.initialQuantity;
+                                const isFirst = idx === 0;
                                 return (
-                                  <div key={batch.id} className="bg-white rounded-xl p-3 border border-rose-100">
+                                  <div
+                                    key={batch.id}
+                                    className={`bg-white rounded-xl p-3 border transition-all ${
+                                      isFirst
+                                        ? "border-rose-300 ring-2 ring-rose-200 ring-opacity-60"
+                                        : isUsed
+                                        ? "border-amber-200"
+                                        : "border-rose-100"
+                                    }`}
+                                  >
                                     <div className="flex items-center justify-between mb-2">
-                                      <span className="text-xs text-ink/50">批次 {idx + 1} · {batch.purchaseDate}</span>
-                                      <span className="text-xs font-medium text-leaf-600">
-                                        ¥{batch.costPrice.toFixed(2)}/枝
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs text-ink/50">{batch.purchaseDate}</span>
+                                        {isFirst && (
+                                          <span className="text-[10px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-medium">
+                                            优先扣减
+                                          </span>
+                                        )}
+                                        {!isFirst && isUsed && (
+                                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+                                            已部分使用
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-xs font-semibold text-leaf-700">
+                                        ¥{batch.costPrice.toFixed(2)}
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <span className="font-serif text-lg font-bold text-ink">{batch.remainingQuantity}</span>
-                                      <span className="text-xs text-ink/50">/ {batch.initialQuantity} 枝</span>
+                                    <div className="flex items-baseline gap-1.5 mb-2">
+                                      <span className="font-serif text-xl font-bold text-ink">{batch.remainingQuantity}</span>
+                                      <span className="text-xs text-ink/50">/ {batch.initialQuantity} 枝剩余</span>
                                     </div>
                                     <div className="h-1.5 bg-rose-100 rounded-full overflow-hidden">
                                       <div
-                                        className="h-full bg-gradient-to-r from-rose-300 to-rose-400 rounded-full transition-all"
+                                        className={`h-full rounded-full transition-all ${
+                                          isFirst ? "bg-gradient-to-r from-rose-400 to-rose-500" : "bg-gradient-to-r from-rose-300 to-rose-400"
+                                        }`}
                                         style={{ width: `${usagePct}%` }}
                                       />
                                     </div>
-                                    <p className="text-xs text-ink/50 mt-1.5">
-                                      剩余价值 ¥{(batch.remainingQuantity * batch.costPrice).toFixed(2)}
-                                    </p>
+                                    <div className="flex items-center justify-between mt-1.5">
+                                      <p className="text-xs text-ink/50">
+                                        已用 {batch.initialQuantity - batch.remainingQuantity} 枝
+                                      </p>
+                                      <p className="text-xs font-medium text-leaf-600">
+                                        余值 ¥{(batch.remainingQuantity * batch.costPrice).toFixed(2)}
+                                      </p>
+                                    </div>
                                   </div>
                                 );
                               })}
                             </div>
+                            <p className="text-[11px] text-ink/40 mt-3">
+                              💡 库存价值按各批次剩余量 × 批次进价精确计算，不受录入顺序影响
+                            </p>
                           </div>
                         </td>
                       </tr>
