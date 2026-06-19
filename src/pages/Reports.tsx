@@ -1,88 +1,120 @@
-import { useMemo } from "react";
-import { BarChart3, TrendingUp, Lightbulb, PieChart as PieIcon } from "lucide-react";
+import { useState, useMemo } from "react";
+import { BarChart3, TrendingUp, Lightbulb, PieChart as PieIcon, Calendar, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useFlowerStore } from "@/store/useFlowerStore";
+import type { ReportRange } from "@/types";
 
 const COLORS = ["#E8B4B8", "#A8CC95", "#F5D5CB", "#CDE0C1", "#D89CA0"];
 
 export default function Reports() {
-  const { getWeeklySalesData, getMonthlyLossData, getInsights, sales, losses } = useFlowerStore();
-  const weeklyData = getWeeklySalesData();
-  const monthlyLoss = getMonthlyLossData();
+  const { getSalesData, getLossData, getProfitSummary, getInsights, flowers } = useFlowerStore();
+  const [range, setRange] = useState<ReportRange>("week");
+
+  const salesData = getSalesData(range);
+  const lossData = getLossData(range);
+  const profit = getProfitSummary(range);
   const insights = getInsights();
 
-  const totalWeeklySales = weeklyData.reduce((sum, d) => sum + d.value, 0);
-  const totalMonthlyLoss = monthlyLoss.reduce((sum, d) => sum + d.value, 0);
+  const totalSalesQty = salesData.reduce((sum, d) => sum + d.value, 0);
+  const totalLossAmount = lossData.reduce((sum, d) => sum + d.value, 0);
 
-  const totalRevenue = useMemo(() => {
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    startOfWeek.setDate(diff);
-    const weekStart = startOfWeek.toISOString().split("T")[0];
-    return sales
-      .filter(s => s.date >= weekStart)
-      .reduce((sum, s) => sum + s.sellPrice, 0);
-  }, [sales]);
+  const lossPieData = lossData.filter(d => d.value > 0);
 
-  const totalProfit = useMemo(() => {
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    startOfWeek.setDate(diff);
-    const weekStart = startOfWeek.toISOString().split("T")[0];
-    return sales
-      .filter(s => s.date >= weekStart)
-      .reduce((sum, s) => sum + (s.sellPrice - s.costPrice), 0);
-  }, [sales]);
+  const topLossFlower = useMemo(() => {
+    const weeklyLoss = getLossData("week");
+    return weeklyLoss[0]?.value > 0 ? weeklyLoss[0] : null;
+  }, [getLossData]);
 
-  const pieData = monthlyLoss.filter(d => d.value > 0);
+  const rangeLabel = range === "week" ? "本周" : "本月";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-serif text-2xl font-bold text-ink flex items-center gap-2">
-          <BarChart3 className="w-6 h-6 text-rose-500" />
-          数据报表
-        </h1>
-        <p className="text-sm text-ink/60 mt-1">周销售排行、月损耗统计，帮你优化采购决策</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-2xl font-bold text-ink flex items-center gap-2">
+            <BarChart3 className="w-6 h-6 text-rose-500" />
+            数据报表
+          </h1>
+          <p className="text-sm text-ink/60 mt-1">销量排行、损耗统计，帮你优化采购决策</p>
+        </div>
+        <div className="inline-flex rounded-full bg-rose-50 p-1">
+          <button
+            onClick={() => setRange("week")}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+              range === "week"
+                ? "bg-rose-500 text-white shadow-md"
+                : "text-ink/60 hover:text-ink"
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            本周
+          </button>
+          <button
+            onClick={() => setRange("month")}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+              range === "month"
+                ? "bg-rose-500 text-white shadow-md"
+                : "text-ink/60 hover:text-ink"
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            本月
+          </button>
+        </div>
       </div>
+
+      {topLossFlower && range === "week" && (
+        <div className="bg-gradient-to-r from-amber-50 to-red-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-amber-500" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-ink">
+              {rangeLabel}损耗最多的花材提醒
+            </p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              {topLossFlower.emoji} <span className="font-semibold">{topLossFlower.name}</span>
+              共损耗 ¥{topLossFlower.value.toFixed(2)}，下周建议适当减少进货量
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 card-shadow">
           <div className="flex items-center gap-2 text-rose-500 mb-2">
             <TrendingUp className="w-4 h-4" />
-            <span className="text-xs font-medium">本周营业额</span>
+            <span className="text-xs font-medium">{rangeLabel}营业额</span>
           </div>
-          <p className="font-serif text-3xl font-bold text-ink">¥{totalRevenue.toFixed(2)}</p>
-          <p className="text-xs text-ink/50 mt-1">{sales.length}笔订单</p>
+          <p className="font-serif text-3xl font-bold text-ink">¥{profit.revenue.toFixed(2)}</p>
+          <p className="text-xs text-ink/50 mt-1">{profit.salesCount}笔订单</p>
         </div>
         <div className="bg-white rounded-2xl p-5 card-shadow">
           <div className="flex items-center gap-2 text-leaf-500 mb-2">
             <TrendingUp className="w-4 h-4" />
-            <span className="text-xs font-medium">本周利润</span>
+            <span className="text-xs font-medium">{rangeLabel}利润</span>
           </div>
-          <p className="font-serif text-3xl font-bold text-ink">¥{totalProfit.toFixed(2)}</p>
+          <p className="font-serif text-3xl font-bold text-ink">¥{profit.profit.toFixed(2)}</p>
           <p className="text-xs text-ink/50 mt-1">
-            利润率 {totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(0) : 0}%
+            利润率 {profit.revenue > 0 ? ((profit.profit / profit.revenue) * 100).toFixed(0) : 0}%
           </p>
         </div>
         <div className="bg-white rounded-2xl p-5 card-shadow">
-          <div className="flex items-center gap-2 text-amber-500 mb-2">
+          <div className="flex items-center gap-2 text-red-400 mb-2">
             <PieIcon className="w-4 h-4" />
-            <span className="text-xs font-medium">本月损耗</span>
+            <span className="text-xs font-medium">{rangeLabel}损耗</span>
           </div>
-          <p className="font-serif text-3xl font-bold text-ink">¥{totalMonthlyLoss.toFixed(2)}</p>
-          <p className="text-xs text-ink/50 mt-1">{losses.length}次记录</p>
+          <p className="font-serif text-3xl font-bold text-ink">¥{totalLossAmount.toFixed(2)}</p>
+          <p className="text-xs text-ink/50 mt-1">
+            占营业额 {profit.revenue > 0 ? ((totalLossAmount / profit.revenue) * 100).toFixed(1) : 0}%
+          </p>
         </div>
         <div className="bg-white rounded-2xl p-5 card-shadow">
           <div className="flex items-center gap-2 text-leaf-500 mb-2">
             <TrendingUp className="w-4 h-4" />
-            <span className="text-xs font-medium">本周用花量</span>
+            <span className="text-xs font-medium">{rangeLabel}用花量</span>
           </div>
-          <p className="font-serif text-3xl font-bold text-ink">{totalWeeklySales}</p>
+          <p className="font-serif text-3xl font-bold text-ink">{totalSalesQty}</p>
           <p className="text-xs text-ink/50 mt-1">枝花材已售出</p>
         </div>
       </div>
@@ -91,18 +123,18 @@ export default function Reports() {
         <div className="bg-white rounded-2xl card-shadow p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-rose-500" />
-            <h2 className="font-serif text-lg font-semibold text-ink">本周花材销量排行</h2>
+            <h2 className="font-serif text-lg font-semibold text-ink">{rangeLabel}花材销量排行</h2>
           </div>
-          {totalWeeklySales === 0 ? (
+          {totalSalesQty === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-center">
               <div className="text-4xl mb-3">📊</div>
-              <p className="text-sm text-ink/50">本周还没有销售数据</p>
+              <p className="text-sm text-ink/50">{rangeLabel}还没有销售数据</p>
               <p className="text-xs text-ink/40 mt-1">制作花束后这里会显示销量统计</p>
             </div>
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={salesData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <XAxis
                     dataKey="name"
                     tick={{ fontSize: 12, fill: "#4A4A4A" }}
@@ -131,7 +163,7 @@ export default function Reports() {
                     radius={[8, 8, 0, 0]}
                     fill="#E8B4B8"
                   >
-                    {weeklyData.map((_, index) => (
+                    {salesData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Bar>
@@ -140,7 +172,7 @@ export default function Reports() {
             </div>
           )}
           <div className="mt-4 space-y-1.5">
-            {weeklyData.slice(0, 3).map((d, i) => d.value > 0 && (
+            {salesData.slice(0, 3).map((d, i) => d.value > 0 && (
               <div key={d.name} className="flex items-center gap-2 text-sm">
                 <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-xs font-bold">
                   {i + 1}
@@ -155,12 +187,12 @@ export default function Reports() {
         <div className="bg-white rounded-2xl card-shadow p-5">
           <div className="flex items-center gap-2 mb-4">
             <PieIcon className="w-5 h-5 text-rose-500" />
-            <h2 className="font-serif text-lg font-semibold text-ink">本月损耗金额占比</h2>
+            <h2 className="font-serif text-lg font-semibold text-ink">{rangeLabel}损耗金额占比</h2>
           </div>
-          {pieData.length === 0 ? (
+          {lossPieData.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-center">
               <div className="text-4xl mb-3">🌸</div>
-              <p className="text-sm text-ink/50">本月暂无损耗</p>
+              <p className="text-sm text-ink/50">{rangeLabel}暂无损耗</p>
               <p className="text-xs text-ink/40 mt-1">太棒了，继续保持！</p>
             </div>
           ) : (
@@ -168,7 +200,7 @@ export default function Reports() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={pieData}
+                    data={lossPieData}
                     cx="50%"
                     cy="50%"
                     innerRadius={50}
@@ -176,7 +208,7 @@ export default function Reports() {
                     paddingAngle={3}
                     dataKey="value"
                   >
-                    {pieData.map((_, index) => (
+                    {lossPieData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -197,7 +229,7 @@ export default function Reports() {
             </div>
           )}
           <div className="mt-4 flex flex-wrap gap-3">
-            {monthlyLoss.map((d, i) => d.value > 0 && (
+            {lossData.map((d, i) => d.value > 0 && (
               <div key={d.name} className="flex items-center gap-1.5 text-sm">
                 <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                 <span>{d.emoji} {d.name}</span>
@@ -206,6 +238,44 @@ export default function Reports() {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl card-shadow p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <AlertTriangle className="w-5 h-5 text-red-400" />
+          <h2 className="font-serif text-lg font-semibold text-ink">{rangeLabel}损耗排行榜</h2>
+        </div>
+        {totalLossAmount === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-3xl mb-2">🎉</div>
+            <p className="text-sm text-ink/50">{rangeLabel}没有损耗记录</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {lossData.filter(d => d.value > 0).map((d, i) => (
+              <div
+                key={d.name}
+                className={`flex items-center gap-3 p-3 rounded-xl ${
+                  i === 0 ? "bg-gradient-to-r from-red-50 to-amber-50 border border-red-100" : "bg-rose-50/30"
+                }`}
+              >
+                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                  i === 0 ? "bg-red-400 text-white" : i === 1 ? "bg-amber-400 text-white" : i === 2 ? "bg-amber-300 text-white" : "bg-rose-200 text-rose-600"
+                }`}>
+                  {i + 1}
+                </span>
+                <div className="text-2xl">{d.emoji}</div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-ink">{d.name}</p>
+                  <p className="text-xs text-ink/50">{d.totalAmount} 枝</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-red-500">¥{d.value.toFixed(2)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl card-shadow p-5">
@@ -229,16 +299,16 @@ export default function Reports() {
           ))}
         </div>
 
-        {weeklyData[0]?.value > 0 && (
+        {salesData[0]?.value > 0 && (
           <div className="mt-5 p-4 rounded-2xl bg-leaf-50 border border-leaf-100">
             <p className="text-sm text-leaf-700">
               <span className="font-semibold">采购建议：</span>
-              根据数据分析，{weeklyData[0].emoji}{weeklyData[0].name}销量最高，
+              根据数据分析，{salesData[0].emoji}{salesData[0].name}销量最高，
               建议保持充足库存；
-              {monthlyLoss.sort((a, b) => b.value - a.value)[0]?.value > 0 && (
+              {lossData[0]?.value > 0 && (
                 <>
-                  {monthlyLoss.sort((a, b) => b.value - a.value)[0].emoji}
-                  {monthlyLoss.sort((a, b) => b.value - a.value)[0].name}损耗较多，
+                  {lossData[0].emoji}
+                  {lossData[0].name}损耗较多（¥{lossData[0].value.toFixed(2)}），
                   可以适当减少进货量或优化保存方式。
                 </>
               )}

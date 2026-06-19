@@ -13,6 +13,15 @@ export interface FlowerUsage {
   quantity: number;
 }
 
+export interface FlowerBatch {
+  id: string;
+  flowerId: string;
+  purchaseDate: string;
+  initialQuantity: number;
+  remainingQuantity: number;
+  costPrice: number;
+}
+
 export interface Purchase {
   id: string;
   flowerId: string;
@@ -28,6 +37,13 @@ export interface BouquetTemplate {
   image: string;
   suggestedPrice: number;
   flowers: FlowerUsage[];
+  isCustom?: boolean;
+}
+
+export interface BatchDeduction {
+  batchId: string;
+  quantity: number;
+  unitCost: number;
 }
 
 export interface Sale {
@@ -38,6 +54,7 @@ export interface Sale {
   costPrice: number;
   date: string;
   flowersUsed: FlowerUsage[];
+  batchDeductions: { flowerId: string; deductions: BatchDeduction[] }[];
 }
 
 export interface Loss {
@@ -47,23 +64,32 @@ export interface Loss {
   unitCost: number;
   date: string;
   note?: string;
+  batchDeductions: BatchDeduction[];
 }
+
+export type ReportRange = "week" | "month";
 
 export interface FlowerStoreState {
   flowers: Flower[];
+  batches: FlowerBatch[];
   purchases: Purchase[];
   bouquetTemplates: BouquetTemplate[];
   sales: Sale[];
   losses: Loss[];
 
-  addPurchase: (flowerId: string, quantity: number, costPrice: number) => void;
+  addPurchase: (flowerId: string, quantity: number, costPrice: number, date?: string) => void;
+  getFlowerBatches: (flowerId: string) => FlowerBatch[];
   checkBouquetStock: (bouquetId: string) => { enough: boolean; shortages: { name: string; needed: number; available: number }[] };
   calculateBouquetCost: (bouquetId: string) => number;
   makeBouquet: (bouquetId: string, sellPrice: number) => { success: boolean; message?: string };
-  addLoss: (flowerId: string, quantity: number, note?: string) => void;
+  addLoss: (flowerId: string, quantity: number, note?: string) => { success: boolean; message?: string };
+  addCustomBouquetTemplate: (template: Omit<BouquetTemplate, "id" | "isCustom">) => void;
+  deleteBouquetTemplate: (templateId: string) => void;
+
   getTodayStats: () => { salesCount: number; lossAmount: number };
-  getWeeklySalesData: () => { name: string; value: number; emoji: string }[];
-  getMonthlyLossData: () => { name: string; value: number; emoji: string; totalAmount: number }[];
+  getSalesData: (range: ReportRange) => { name: string; value: number; emoji: string }[];
+  getLossData: (range: ReportRange) => { name: string; value: number; emoji: string; totalAmount: number }[];
+  getProfitSummary: (range: ReportRange) => { revenue: number; cost: number; profit: number; salesCount: number };
   getTotalInventoryValue: () => number;
   getInsights: () => string[];
 }

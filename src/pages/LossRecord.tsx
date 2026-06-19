@@ -9,6 +9,7 @@ export default function LossRecord() {
   const [quantity, setQuantity] = useState("");
   const [note, setNote] = useState("");
   const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
 
   const getFlowerName = (id: string) => flowers.find(f => f.id === id)?.name || id;
   const getFlowerEmoji = (id: string) => flowers.find(f => f.id === id)?.emoji || "🌸";
@@ -24,15 +25,23 @@ export default function LossRecord() {
     const qty = parseInt(quantity);
     if (!flowerId || !qty || qty <= 0) return;
 
-    addLoss(flowerId, qty, note || undefined);
-    setQuantity("");
-    setNote("");
-    const flower = flowers.find(f => f.id === flowerId);
-    setSuccess(`已记录 ${flower?.emoji}${flower?.name} 损耗 ${qty} 枝`);
-    setTimeout(() => setSuccess(""), 2000);
+    const result = addLoss(flowerId, qty, note || undefined);
+    if (result.success) {
+      setQuantity("");
+      setNote("");
+      setError("");
+      const flower = flowers.find(f => f.id === flowerId);
+      setSuccess(`已记录 ${flower?.emoji}${flower?.name} 损耗 ${qty} 枝`);
+      setTimeout(() => setSuccess(""), 2000);
+    } else {
+      setSuccess("");
+      setError(result.message || "记录失败，请检查后重试");
+    }
   };
 
   const currentFlower = flowers.find(f => f.id === flowerId);
+  const qtyNum = parseInt(quantity || "0");
+  const quantityExceeds = currentFlower && qtyNum > currentFlower.currentStock;
 
   return (
     <div className="space-y-6">
@@ -56,13 +65,18 @@ export default function LossRecord() {
               {success}
             </div>
           )}
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3">
+              ⚠️ {error}
+            </div>
+          )}
 
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-ink/70 mb-1.5">选择花材</label>
               <select
                 value={flowerId}
-                onChange={(e) => setFlowerId(e.target.value)}
+                onChange={(e) => { setFlowerId(e.target.value); setError(""); }}
                 className="w-full px-4 py-2.5 rounded-xl border border-rose-100 bg-white text-ink focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300"
               >
                 {flowers.map(f => (
@@ -78,12 +92,20 @@ export default function LossRecord() {
               <input
                 type="number"
                 min="1"
-                max={currentFlower?.currentStock || 0}
                 value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
+                onChange={(e) => { setQuantity(e.target.value); setError(""); }}
                 placeholder={`最多可记 ${currentFlower?.currentStock || 0} 枝`}
-                className="w-full px-4 py-2.5 rounded-xl border border-rose-100 bg-white text-ink focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300"
+                className={`w-full px-4 py-2.5 rounded-xl border bg-white text-ink focus:outline-none focus:ring-2 ${
+                  quantityExceeds
+                    ? "border-red-400 focus:ring-red-200 focus:border-red-400"
+                    : "border-rose-100 focus:ring-rose-200 focus:border-rose-300"
+                }`}
               />
+              {quantityExceeds && (
+                <p className="mt-1.5 text-xs text-red-500">
+                  输入数量超过当前库存（{currentFlower?.currentStock} 枝），请核对后再记录
+                </p>
+              )}
             </div>
 
             <div>
